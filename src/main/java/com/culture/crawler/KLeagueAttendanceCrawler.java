@@ -127,6 +127,12 @@ public class KLeagueAttendanceCrawler {
 
                 for (WebElement row : rows) {
                     List<WebElement> cells = row.findElements(By.tagName("td"));
+
+                    if (cells.size() < 13) {
+                        System.out.println("⚠️ 컬럼 수 부족으로 행 스킵: " + cells.size() + "개");
+                        continue;
+                    }
+
                     StringBuilder line = new StringBuilder();
 
                     for (int i = 0; i < cells.size(); i++) {
@@ -139,6 +145,7 @@ public class KLeagueAttendanceCrawler {
                             line.append(",");
                         }
                     }
+
                     writer.println(line.toString());
                 }
 
@@ -178,7 +185,7 @@ public class KLeagueAttendanceCrawler {
             e.printStackTrace();
         } finally {
             // 실행 후 종료 여부 결정
-            // driver.quit();
+             driver.quit();
         }
     }
 }

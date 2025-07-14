@@ -19,96 +19,93 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 public class KBOGameScheduleCrawler {
     public static void main(String[] args) {
         System.setProperty("webdriver.chrome.driver", "C:\\chromedriver\\chromedriver.exe");
-        System.out.println("작업 디렉터리: " + System.getProperty("user.dir"));
 
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--remote-allow-origins=*");
 
         WebDriver driver = new ChromeDriver(options);
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
         try {
             driver.get("https://www.koreabaseball.com/Schedule/Schedule.aspx#");
             driver.manage().window().maximize();
-            System.out.println("✅ 사이트 접속 및 창 최대화 완료");
 
             LocalDate now = LocalDate.now();
             int currentYear = now.getYear();
             int currentMonth = now.getMonthValue();
 
             WebElement yearSelectElem = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("ddlYear")));
-            Select yearSelect = new Select(yearSelectElem);
-
             WebElement monthSelectElem = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("ddlMonth")));
+            Select yearSelect = new Select(yearSelectElem);
             Select monthSelect = new Select(monthSelectElem);
-
             yearSelect.selectByValue(String.valueOf(currentYear));
             Thread.sleep(1000);
 
             for (int month = 1; month <= currentMonth; month++) {
                 String monthStr = (month < 10) ? "0" + month : String.valueOf(month);
                 monthSelect.selectByValue(monthStr);
-                System.out.println("✅ " + currentYear + "년 " + monthStr + "월 선택");
                 Thread.sleep(3000);
 
-                String csvFile = String.format("kbo_schedule_%04d%02d.csv", currentYear, month);
-                PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(csvFile, false)));
-                writer.println("일자,요일,경기시간,홈팀,VS,원정팀,구장,중계");
+                String fileName = String.format("kbo_schedule_%04d%02d.csv", currentYear, month);
+                PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(fileName, false)));
+                writer.println("일자,시간,홈팀,홈점수,VS,원정점수,원정팀,구장,중계,비고");
 
                 WebElement scheduleTable = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("tblScheduleList")));
                 List<WebElement> rows = scheduleTable.findElements(By.cssSelector("tbody > tr"));
-                System.out.println("📄 " + currentYear + "년 " + monthStr + "월 일정 행 개수: " + rows.size());
 
                 String currentDate = "";
 
                 for (WebElement row : rows) {
-                    List<WebElement> cols = row.findElements(By.tagName("td"));
-                    StringBuilder line = new StringBuilder();
+                    List<WebElement> tds = row.findElements(By.tagName("td"));
+                    if (tds.isEmpty()) continue;
 
-                    int offset = 0;
-
-                    if (cols.size() == 9) {
-                        // 날짜 포함된 경우
-                        currentDate = cols.get(0).getText().trim();
-                    } else {
-                        // 날짜 생략 → 이전 날짜 유지
-                        offset = 1;
+                    int tdIndex = 0;
+                    if (tds.get(0).getAttribute("class").contains("day")) {
+                        currentDate = tds.get(0).getText().trim();
+                        tdIndex = 1;
                     }
 
-                    line.append(currentDate).append(",");
+                    if (tds.size() < tdIndex + 8) continue;  // 최소 칼럼 수 방어
 
-                    // 나머지 컬럼 정리
-                    for (int i = offset; i < cols.size(); i++) {
-                        String text = cols.get(i).getText().trim();
-                        text = text.replaceAll("\\r?\\n", "; "); // 줄바꿈 제거
-                        if (text.contains(",")) {
-                            text = "\"" + text + "\"";
+                    String time = tds.get(tdIndex).getText().trim();
+
+                    // 경기 정보 추출
+                    String homeTeam = "", awayTeam = "";
+                    String homeScore = "", awayScore = "";
+                    WebElement playTd = tds.get(tdIndex + 1);
+                    if (playTd != null) {
+                        List<WebElement> spans = playTd.findElements(By.tagName("span"));
+                        if (spans.size() >= 1) homeTeam = spans.get(0).getText().trim();
+                        if (spans.size() >= 3) awayTeam = spans.get(spans.size() - 1).getText().trim();
+
+                        List<WebElement> emList = playTd.findElements(By.tagName("em"));
+                        if (!emList.isEmpty()) {
+                            List<WebElement> scoreSpans = emList.get(0).findElements(By.tagName("span"));
+                            if (scoreSpans.size() >= 3) {
+                                homeScore = scoreSpans.get(0).getText().trim();
+                                awayScore = scoreSpans.get(2).getText().trim();
+                            }
                         }
-                        line.append(text);
-                        if (i < cols.size() - 1) {
-                            line.append(",");
-                        }
                     }
 
-                    // 누락된 열이 있다면 빈 컬럼 추가 (최소 7개)
-                    int actualCols = cols.size() - offset;
-                    while (actualCols < 7) {
-                        line.append(",");
-                        actualCols++;
-                    }
+                    String vs = "vs";
+                    String tvText = tds.get(tdIndex + 4).getText().replaceAll("\\r?\\n", "; ").trim();
+                    String stadium = tds.get(tdIndex + 6).getText().trim();
+                    String etc = tds.get(tdIndex + 7).getText().trim();
 
-                    writer.println(line.toString());
+                    String line = String.join(",", currentDate, time, homeTeam, homeScore, vs, awayScore, awayTeam, stadium, tvText, etc);
+                    writer.println(line);
                 }
 
                 writer.close();
-                System.out.println("✅ CSV 저장 완료: " + csvFile);
+                System.out.println("✅ 저장 완료: " + fileName);
                 Thread.sleep(1000);
             }
 
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            // driver.quit(); // 필요 시 주석 해제
+             driver.quit(); // 필요시 주석 해제
         }
     }
 }
