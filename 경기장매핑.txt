@@ -1,0 +1,22 @@
+    static final Map<String, String> stdmToCityName = Map.ofEntries(
+        Map.entry("잠실실내체육관", "서울"), Map.entry("고척", "서울"), Map.entry("잠실", "서울"), Map.entry("목동 종합", "서울"),
+        Map.entry("창원체육관", "경남"), Map.entry("창원 축구센터", "경남"),
+        Map.entry("울산동천체육관", "울산"), Map.entry("울산 문수", "울산"), Map.entry("울산 종합", "울산"),
+        Map.entry("고양 소노 아레나", "경기"), Map.entry("고양체육관", "경기"),
+        Map.entry("수원 KT 아레나", "경기"), Map.entry("수원 종합", "경기"), Map.entry("수원 월드컵", "경기"), Map.entry("수원", "경기"),
+        Map.entry("안양 정관장 아레나", "경기"), Map.entry("안양 종합", "경기"),
+        Map.entry("광주 월드컵", "광주"), Map.entry("광주 전용", "광주"),
+        Map.entry("인천 전용", "인천"), Map.entry("대전 월드컵", "대전"), Map.entry("대구", "대구"),
+        Map.entry("포항", "경북"), Map.entry("전주 월드컵", "전북"), Map.entry("제주 월드컵", "제주"),
+        Map.entry("잠실학생체육관", "서울"), Map.entry("부산사직체육관", "부산"), Map.entry("대구체육관", "대구"),
+        Map.entry("원주종합체육관", "강원"), Map.entry("이천 LG 챔피언스파크", "경기"), Map.entry("제천체육관", "충북"),
+        Map.entry("군산월명체육관", "전북"), Map.entry("안양실내체육관", "경기"), Map.entry("전주실내체육관", "전북"),
+        Map.entry("문학", "인천"), Map.entry("대전(신)", "대전"), Map.entry("사직", "부산"), Map.entry("부산 아시아드", "부산"),
+        Map.entry("대구iM뱅크PARK", "대구"), Map.entry("강릉하이원아레나", "강원"), Map.entry("탄천 종합", "경기"),
+        Map.entry("청주 종합", "충북"), Map.entry("춘천 송암", "강원"), Map.entry("부천 종합", "경기"),
+        Map.entry("광양 전용", "전남"), Map.entry("아산 이순신", "충남"), Map.entry("안산 와스타디움", "경기"),
+        Map.entry("김포솔터축구장", "경기"), Map.entry("양산 종합", "경남"), Map.entry("부산 구덕", "부산"),
+        Map.entry("천안 종합", "충남"), Map.entry("김천 종합", "경북"), Map.entry("용인 미르", "경기"),
+        Map.entry("화성 종합", "경기"), Map.entry("광주", "광주"), Map.entry("여수", "전남"),
+        Map.entry("포항 스틸야드", "경북")
+    );

@@ -4,26 +4,34 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-public class ColctStatCsvGenerator {
+public class ColctStatCsvGeneratorCSV {
 
     static class Stat {
         String year, month, cityName, cityCode;
         double klea = 0, kbo = 0, kbl = 0, wkbl = 0, kovo = 0;
         int kleaCount = 0, kboCount = 0, kblCount = 0, wkblCount = 0, kovoCount = 0;
         String colctDe = "", updtDe = "";
+        String baseDay;
 
         public String toCsvLine() {
-            String baseDay = "01";
-            String baseDe = year + String.format("%02d", Integer.parseInt(month)) + baseDay;
+            // 따옴표 및 공백 제거
+            String cleanMonth = month.replaceAll("\"", "").trim();
+            String cleanDay = baseDay.replaceAll("\"", "").trim();
+
+            // 안전하게 baseDe 생성
+            String baseDe = year + String.format("%02d", Integer.parseInt(cleanMonth)) + 
+                            String.format("%02d", Integer.parseInt(cleanDay));
+
             double totalView = klea + kbo + kbl + wkbl + kovo;
             int totalCnt = kleaCount + kboCount + kblCount + wkblCount + kovoCount;
 
-            return String.join(",", baseDe, year, month, baseDay, cityCode, cityName,
+            return String.join(",", baseDe, year, cleanMonth, cleanDay, cityCode, cityName,
                     format(klea), format(kbo), format(kbl), format(wkbl), format(kovo), format(totalView),
                     String.valueOf(kleaCount), String.valueOf(kboCount), String.valueOf(kblCount),
                     String.valueOf(wkblCount), String.valueOf(kovoCount), String.valueOf(totalCnt),
                     colctDe, updtDe);
         }
+
 
         private String format(double v) {
             return String.format("%.5f", v);
@@ -97,7 +105,8 @@ public class ColctStatCsvGenerator {
 
                 String year = t[2];
                 String month = t[3];
-                String leaNm = t[6];
+                String baseDay = t[4]; 
+                String grpNm = t[5];
                 String stdmNm = t[9];
                 double viewCnt = Double.parseDouble(t[10]);
                 String colctDe = t[11];
@@ -105,9 +114,10 @@ public class ColctStatCsvGenerator {
 
                 String cityName = stdmToCityName.getOrDefault(stdmNm, "기타");
                 String cityCode = cityNameToCode.getOrDefault(cityName, "99");
-                String key = year + month + cityCode;
+                String key = year + month + baseDay + cityCode; 
 
                 Stat stat = map.getOrDefault(key, new Stat());
+                stat.baseDay = baseDay;
                 stat.year = year;
                 stat.month = month;
                 stat.cityName = cityName;
@@ -115,7 +125,7 @@ public class ColctStatCsvGenerator {
                 stat.colctDe = colctDe;
                 stat.updtDe = updtDe;
 
-                switch (leaNm.toUpperCase()) {
+                switch (grpNm.toUpperCase()) {
                     case "KBO":
                         stat.kbo += viewCnt;
                         stat.kboCount++;
@@ -132,11 +142,11 @@ public class ColctStatCsvGenerator {
                         stat.kovo += viewCnt;
                         stat.kovoCount++;
                         break;
-                    case "K리그1":
-                    case "K리그2":
+                    case "KLEAGUE":
                         stat.klea += viewCnt;
                         stat.kleaCount++;
                         break;
+
                 }
                 map.put(key, stat);
             }

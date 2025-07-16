@@ -205,9 +205,13 @@ public class KBLIntegratedCrawler {
 
                         String today1 = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
 
+                        String leaNm = getCellString(row, 4).trim(); // 엑셀의 '경기구분' 컬럼에서 가져옴
+                        String grpNm = "KBL"; // GRP_NM은 일정에서 항상 "KBL"로 들어갔기 때문에 고정
+
                         String line = String.join(",", matchDe, baseYearStr, baseMonth, baseDay,
-                                "프로스포츠", "KBL", homeTeam, "", stadium, crowd, today1, today1);
+                                grpNm, leaNm, homeTeam, "", stadium, crowd, today1, today1);
                         writer.println(line);
+
                         convertedCount++;
 
                     } catch (Exception e) {
@@ -251,8 +255,8 @@ public class KBLIntegratedCrawler {
             driver.manage().window().maximize();
             Thread.sleep(3000);
 
-            int startYear = 2023;
-            int startMonth = 1;
+            int startYear = 2025;
+            int startMonth = 5;
             int endYear = 2025;
             int endMonth = 7;
 
@@ -416,13 +420,13 @@ public class KBLIntegratedCrawler {
 
         for (String[] schedule : scheduleRows) {
             String matchDe = schedule[0].trim();
-            String scheduleHome = schedule[6].trim(); // 그대로 사용
+            String scheduleHome = normalizeTeamName(schedule[6].trim());
 
             String matchedCrowd = null;
 
             for (String[] crowd : crowdRows) {
                 String crowdDe = crowd[0].trim();
-                String crowdHome = extractSecondWordOrOriginal(crowd[6].trim()); // 두 번째 단어만 추출
+                String crowdHome = normalizeTeamName(extractSecondWordOrOriginal(crowd[6].trim()));
 
                 if (matchDe.equals(crowdDe) && scheduleHome.equals(crowdHome)) {
                     matchedCrowd = crowd[9];
@@ -446,11 +450,6 @@ public class KBLIntegratedCrawler {
         System.out.println("📁 병합 완료 → 저장: " + outputCsvPath);
     }
 
-    // ✅ 관중수 파일용: 두 번째 단어 추출 (없으면 그대로)
-    private static String extractSecondWordOrOriginal(String teamName) {
-        String[] parts = teamName.trim().split("\\s+");
-        return parts.length >= 2 ? parts[1] : parts[0];
-    }
     public static void insertCrowdAndScheduleToDb(String scheduleCsvPath, String crowdCsvPath) throws Exception {
         List<String[]> scheduleRows = new ArrayList<>();
         List<String[]> crowdRows = new ArrayList<>();
@@ -473,55 +472,100 @@ public class KBLIntegratedCrawler {
 
         try (java.sql.Connection conn = java.sql.DriverManager.getConnection(
                 "jdbc:mysql://localhost:3306/culture_crawler_db?serverTimezone=Asia/Seoul",
-                "root",            // 👈 사용자 DB 계정에 맞게 수정
-                "1234"    // 👈 비밀번호에 맞게 수정
+                "root",
+                "1234"
         )) {
-            String sql = "INSERT INTO colct_sports_match_info " +
-                    "(MATCH_DE, BASE_YEAR, BASE_MT, BASE_DAY, GRP_NM, LEA_NM, HOME_TEAM_NM, AWAY_TEAM_NM, " +
-                    "STDM_NM, SPORTS_VIEWNG_NMPR_CO, COLCT_DE, UPDT_DE) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            String checkSql = "SELECT COUNT(*) FROM colct_sports_match_info " +
+                    "WHERE MATCH_DE = ? AND GRP_NM = ? AND HOME_TEAM_NM = ? AND AWAY_TEAM_NM = ? " +
+                    "AND STDM_NM = ? AND SPORTS_VIEWNG_NMPR_CO = ?";
+            java.sql.PreparedStatement checkStmt = conn.prepareStatement(checkSql);
 
-            java.sql.PreparedStatement pstmt = conn.prepareStatement(sql);
-            int count = 0;
+            String insertSql = "INSERT INTO colct_sports_match_info " +
+                    "(MATCH_DE, BASE_YEAR, BASE_MT, BASE_DAY, GRP_NM, LEA_NM, HOME_TEAM_NM, AWAY_TEAM_NM, " +
+                    "STDM_NM, SPORTS_VIEWNG_NMPR_CO, COLCT_DE, UPDT_DE) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            java.sql.PreparedStatement insertStmt = conn.prepareStatement(insertSql);
+
+            int insertCount = 0;
 
             for (String[] schedule : scheduleRows) {
                 String matchDe = schedule[0].trim();
-                String scheduleHome = schedule[6].trim();
+                String grpNm = schedule[4].trim();
+                String homeTeam = normalizeTeamName(schedule[6].trim());
+                String awayTeam = schedule[7].trim();
+                String stadium = schedule[8].trim();
+                String crowdStr = schedule[9].trim();
+                if (crowdStr.isEmpty()) continue;
 
+                // 관중수 보정
                 String matchedCrowd = null;
                 for (String[] crowd : crowdRows) {
                     String crowdDe = crowd[0].trim();
-                    String crowdHome = extractSecondWordOrOriginal(crowd[6].trim());
-
-                    if (matchDe.equals(crowdDe) && scheduleHome.equals(crowdHome)) {
+                    String crowdHome = normalizeTeamName(extractSecondWordOrOriginal(crowd[6].trim()));
+                    if (matchDe.equals(crowdDe) && homeTeam.equals(crowdHome)) {
                         matchedCrowd = crowd[9];
                         break;
                     }
                 }
-
                 if (matchedCrowd != null && !matchedCrowd.isEmpty()) {
-                    schedule[9] = matchedCrowd;
+                    crowdStr = matchedCrowd;
+                    schedule[9] = crowdStr;
                 }
 
-                pstmt.setString(1,  schedule[0]);
-                pstmt.setString(2,  schedule[1]);
-                pstmt.setString(3,  schedule[2]);
-                pstmt.setString(4,  schedule[3]);
-                pstmt.setString(5,  schedule[4]);
-                pstmt.setString(6,  schedule[5]);
-                pstmt.setString(7,  schedule[6]);
-                pstmt.setString(8,  schedule[7]);
-                pstmt.setString(9,  schedule[8]);
-                pstmt.setBigDecimal(10, new java.math.BigDecimal(schedule[9]));
-                pstmt.setString(11, schedule[10]);
-                pstmt.setString(12, schedule[11]);
+                // 중복 체크
+                checkStmt.setString(1, matchDe);
+                checkStmt.setString(2, grpNm);
+                checkStmt.setString(3, homeTeam);
+                checkStmt.setString(4, awayTeam);
+                checkStmt.setString(5, stadium);
+                checkStmt.setBigDecimal(6, new java.math.BigDecimal(crowdStr));
 
-                pstmt.executeUpdate();
-                count++;
+                java.sql.ResultSet rs = checkStmt.executeQuery();
+                rs.next();
+                int exists = rs.getInt(1);
+                rs.close();
+
+                if (exists > 0) {
+                    System.out.println("⏩ 중복 생략: " + matchDe + " " + homeTeam + " vs " + awayTeam);
+                    continue;
+                }
+
+                // INSERT 실행
+                insertStmt.setString(1, schedule[0]);
+                insertStmt.setString(2, schedule[1]);
+                insertStmt.setString(3, schedule[2]);
+                insertStmt.setString(4, schedule[3]);
+                insertStmt.setString(5, schedule[4]);
+                insertStmt.setString(6, schedule[5]);
+                insertStmt.setString(7, schedule[6]);
+                insertStmt.setString(8, schedule[7]);
+                insertStmt.setString(9, schedule[8]);
+                insertStmt.setBigDecimal(10, new java.math.BigDecimal(schedule[9]));
+                insertStmt.setString(11, schedule[10]);
+                insertStmt.setString(12, schedule[11]);
+
+                insertStmt.executeUpdate();
+                insertCount++;
             }
 
-            System.out.println("✅ DB 저장 완료: " + count + "건 insert됨");
+            checkStmt.close();
+            insertStmt.close();
+
+            System.out.println("✅ DB 저장 완료: " + insertCount + "건 insert됨");
         }
+    }
+
+    // ✅ 관중수 파일용: 두 번째 단어 추출 (없으면 그대로)
+    private static String extractSecondWordOrOriginal(String teamName) {
+        String[] parts = teamName.trim().split("\\s+");
+        return parts.length >= 2 ? parts[1] : parts[0];
+    }
+    private static String normalizeTeamName(String teamName) {
+        teamName = teamName.trim();
+
+        if (teamName.contains("정관장")) return "KGC";
+        if (teamName.contains("고양 캐롯")) return "캐롯";
+
+        return teamName;
     }
 
     

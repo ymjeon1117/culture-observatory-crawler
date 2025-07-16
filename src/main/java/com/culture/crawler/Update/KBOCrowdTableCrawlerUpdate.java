@@ -1,19 +1,24 @@
-package com.culture.crawler.DB;
+package com.culture.crawler.Update;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.PrintWriter;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-import org.openqa.selenium.*;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.StaleElementReferenceException;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.support.ui.*;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
-public class KBOCrowdTableCrawler {
+public class KBOCrowdTableCrawlerUpdate {
     public static void main(String[] args) throws Exception {
         System.setProperty("webdriver.chrome.driver", "C:\\chromedriver\\chromedriver.exe");
 
@@ -24,15 +29,26 @@ public class KBOCrowdTableCrawler {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         JavascriptExecutor js = (JavascriptExecutor) driver;
 
-        int startYear = 2023;
-        int endYear = 2025;
+        // DB에서 최신 경기를 기준으로 크롤링
+        String latestMatchDate = getLatestMatchDateFromDB();
+        System.out.println("📌 마지막 저장된 KBO 경기일: " + latestMatchDate);
+
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
 
         try {
+            int totalInsertCount = 0;
+            String minInsertedDate = null;
+            String maxInsertedDate = null;
+
             driver.get("https://www.koreabaseball.com/Record/Crowd/GraphDaily.aspx");
             driver.manage().window().maximize();
 
-            for (int year = startYear; year <= endYear; year++) {
+            // DB에서 마지막 경기일을 기준으로 크롤링 시작 연도 계산
+            int latestYear = Integer.parseInt(latestMatchDate.substring(0, 4));
+            System.out.println("[INFO] 마지막 경기일 기준 연도: " + latestYear);
+
+            // 크롤링할 연도 범위 설정 (최신 경기일 이후 연도부터 시작)
+            for (int year = latestYear; year <= LocalDate.now().getYear(); year++) {
                 // 연도 선택
                 Select seasonSelect = new Select(wait.until(ExpectedConditions.elementToBeClickable(
                     By.id("cphContents_cphContents_cphContents_ddlSeason"))));
@@ -51,9 +67,7 @@ public class KBOCrowdTableCrawler {
                     By.cssSelector("#cphContents_cphContents_cphContents_udpRecord > table")));
                 List<WebElement> rows = table.findElements(By.tagName("tr"));
 
-                String csvFile = "kbo_matchinfo_" + year + ".csv";
-//                PrintWriter writer = new PrintWriter(new BufferedWriter(new FileWriter(csvFile, false)));
-//                writer.println("MATCH_DE,BASE_YEAR,BASE_MT,BASE_DAY,GRP_NM,LEA_NM,HOME_TEAM_NM,AWAY_TEAM_NM,STDM_NM,SPORTS_VIEWNG_NMPR_CO,COLCT_DE,UPDT_DE");
+                int yearInsertCount = 0; // 년도별 추가 건수 카운트
 
                 for (int i = 1; i < rows.size(); i++) {
                     try {
@@ -64,6 +78,13 @@ public class KBOCrowdTableCrawler {
                         LocalDate matchDate = LocalDate.parse(rawDate, DateTimeFormatter.ofPattern("yyyy/MM/dd"));
 
                         String matchDe = matchDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
+                        // DB에서 최신 날짜 이후로만 크롤링하도록 필터링
+                        if (matchDe.compareTo(latestMatchDate) <= 0) {
+                            System.out.println("⏩ 생략: " + matchDe + " 경기");
+                            continue;
+                        }
+
                         String baseYear = matchDate.format(DateTimeFormatter.ofPattern("yyyy"));
                         String baseMt = matchDate.format(DateTimeFormatter.ofPattern("MM"));
                         String baseDay = matchDate.format(DateTimeFormatter.ofPattern("dd"));
@@ -75,8 +96,12 @@ public class KBOCrowdTableCrawler {
                         if (crowdRaw.isEmpty()) crowdRaw = "0";
                         String crowd = crowdRaw + ".00000";
 
-//                        String line = String.join(",", matchDe, baseYear, baseMt, baseDay, "KBO", "정규리그", home, away, stadium, crowd, today, today);
-//                        writer.println(line);
+                        // 데이터 삽입
+                        totalInsertCount++;
+                        yearInsertCount++;  // 해당 년도에 추가된 경기 수 증가
+
+                        if (minInsertedDate == null || matchDe.compareTo(minInsertedDate) < 0) minInsertedDate = matchDe;
+                        if (maxInsertedDate == null || matchDe.compareTo(maxInsertedDate) > 0) maxInsertedDate = matchDe;
 
                         insertKBOCrowdToDb(
                             matchDe, baseYear, baseMt, baseDay,
@@ -92,50 +117,47 @@ public class KBOCrowdTableCrawler {
                     }
                 }
 
-//                writer.close();
-                System.out.println("✅ " + year + "년 경기 CSV 저장 완료: " + csvFile);
+                System.out.println("✅ " + year + "년 경기 크롤링 및 DB 저장 완료 (CSV 저장은 생략됨)");
+                System.out.println("📅 " + year + "년 추가된 경기 수: " + yearInsertCount);
             }
+
+            System.out.println("🎯 KBO 총 추가 건수: " + totalInsertCount);
+            if (totalInsertCount > 0) {
+                System.out.println("🗓️ 추가된 경기 날짜 범위: " + minInsertedDate + " ~ " + maxInsertedDate);
+            } else {
+                System.out.println("📭 추가된 경기 없음 (이미 모두 반영됨)");
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
             driver.quit();
         }
-
     }
-//    public static void insertKBOCrowdToDb(
-//            String matchDe, String baseYear, String baseMt, String baseDay,
-//            String grpNm, String leaNm, String homeTeam, String awayTeam,
-//            String stadium, String crowd, String today
-//    ) {
-//        try (java.sql.Connection conn = java.sql.DriverManager.getConnection(
-//                "jdbc:mysql://localhost:3306/culture_crawler_db?serverTimezone=Asia/Seoul",
-//                "root", // ✅ 사용자에 맞게 수정
-//                "1234" // ✅ 실제 비밀번호로 수정
-//        )) {
-//            String sql = "INSERT INTO colct_sports_match_info " +
-//                    "(MATCH_DE, BASE_YEAR, BASE_MT, BASE_DAY, GRP_NM, LEA_NM, HOME_TEAM_NM, AWAY_TEAM_NM, " +
-//                    "STDM_NM, SPORTS_VIEWNG_NMPR_CO, COLCT_DE, UPDT_DE) " +
-//                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-//
-//            java.sql.PreparedStatement pstmt = conn.prepareStatement(sql);
-//            pstmt.setString(1, matchDe);
-//            pstmt.setString(2, baseYear);
-//            pstmt.setString(3, baseMt);
-//            pstmt.setString(4, baseDay);
-//            pstmt.setString(5, grpNm);
-//            pstmt.setString(6, leaNm);
-//            pstmt.setString(7, homeTeam);
-//            pstmt.setString(8, awayTeam);
-//            pstmt.setString(9, stadium);
-//            pstmt.setBigDecimal(10, new java.math.BigDecimal(crowd));
-//            pstmt.setString(11, today);
-//            pstmt.setString(12, today);
-//
-//            pstmt.executeUpdate();
-//        } catch (Exception e) {
-//            System.err.println("❌ DB insert 실패: " + e.getMessage());
-//        }
-//    }
+
+    // DB에서 마지막 경기일을 가져오는 함수
+    private static String getLatestMatchDateFromDB() {
+        String latestMatchDate = "20230101";  // 기본값
+
+        try (java.sql.Connection conn = java.sql.DriverManager.getConnection(
+                "jdbc:mysql://localhost:3306/culture_crawler_db?serverTimezone=Asia/Seoul", "root", "1234")) {
+
+            PreparedStatement stmt = conn.prepareStatement(
+                    "SELECT MAX(MATCH_DE) FROM colct_sports_match_info WHERE GRP_NM = 'KBO'");
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next() && rs.getString(1) != null) {
+                latestMatchDate = rs.getString(1);
+            }
+            rs.close();
+            stmt.close();
+        } catch (Exception e) {
+            System.err.println("❌ KBO 마지막 날짜 조회 실패: " + e.getMessage());
+        }
+
+        return latestMatchDate;
+    }
+
+    // 데이터 삽입 함수
     public static void insertKBOCrowdToDb(
             String matchDe, String baseYear, String baseMt, String baseDay,
             String grpNm, String leaNm, String homeTeam, String awayTeam,
@@ -143,39 +165,14 @@ public class KBOCrowdTableCrawler {
     ) {
         try (java.sql.Connection conn = java.sql.DriverManager.getConnection(
                 "jdbc:mysql://localhost:3306/culture_crawler_db?serverTimezone=Asia/Seoul",
-                "root",
-                "1234"
+                "root", "1234"
         )) {
-//            // ✅ 중복 여부 확인
-//            String checkSql = "SELECT COUNT(*) FROM colct_sports_match_info " +
-//                    "WHERE MATCH_DE = ? AND GRP_NM = ? AND HOME_TEAM_NM = ? AND AWAY_TEAM_NM = ? " +
-//                    "AND STDM_NM = ? AND SPORTS_VIEWNG_NMPR_CO = ?";
-//            java.sql.PreparedStatement checkStmt = conn.prepareStatement(checkSql);
-//            checkStmt.setString(1, matchDe);
-//            checkStmt.setString(2, grpNm);
-//            checkStmt.setString(3, homeTeam);
-//            checkStmt.setString(4, awayTeam);
-//            checkStmt.setString(5, stadium);
-//            checkStmt.setBigDecimal(6, new java.math.BigDecimal(crowd));
-//
-//            java.sql.ResultSet rs = checkStmt.executeQuery();
-//            rs.next();
-//            int count = rs.getInt(1);
-//            rs.close();
-//            checkStmt.close();
-//
-//            if (count > 0) {
-//                System.out.println("⏩ 중복 생략: " + matchDe + " " + homeTeam + " vs " + awayTeam + " @ " + stadium);
-//                return;
-//            }
-
-            // ✅ INSERT
             String sql = "INSERT INTO colct_sports_match_info " +
                     "(MATCH_DE, BASE_YEAR, BASE_MT, BASE_DAY, GRP_NM, LEA_NM, HOME_TEAM_NM, AWAY_TEAM_NM, " +
                     "STDM_NM, SPORTS_VIEWNG_NMPR_CO, COLCT_DE, UPDT_DE) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)" ;
 
-            java.sql.PreparedStatement pstmt = conn.prepareStatement(sql);
+            PreparedStatement pstmt = conn.prepareStatement(sql);
             pstmt.setString(1, matchDe);
             pstmt.setString(2, baseYear);
             pstmt.setString(3, baseMt);
@@ -197,5 +194,4 @@ public class KBOCrowdTableCrawler {
             System.err.println("❌ DB insert 실패: " + e.getMessage());
         }
     }
-
 }
