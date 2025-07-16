@@ -47,7 +47,8 @@ public class ColctStatDbAggregatorUd {
     }
 
 
-    static final Map<String, String> stdmToCityName = Map.ofEntries(Map.entry("강릉하이원아레나", "강원"),
+    static final Map<String, String> stdmToCityName = Map.ofEntries(
+    		Map.entry("강릉하이원아레나", "강원"),
     		Map.entry("원주종합체육관", "강원"),
     		Map.entry("춘천 송암", "강원"),
     		Map.entry("고양 소노 아레나", "경기"),
