@@ -12,6 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+import com.culture.crawler.Update.old.ColctStatDbAggregator;
+import com.culture.util.LogUtil;
+
 public class ColctStatDbAggregatorUd {
 
     static class Stat {
@@ -128,10 +131,12 @@ public class ColctStatDbAggregatorUd {
         Map<String, Stat> map = new LinkedHashMap<>();
         Set<String> uniqueMatchSeqSet = new HashSet<>();
 
+        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        LogUtil.insertLog("스포츠 관람", "스포츠 관람 정보 수집", "COLCT_SPORTS_VIEWING_INFO", "STARTED", null, null, null, "", today);
+        
         try (Connection conn = DriverManager.getConnection(jdbcUrl, user, password)) {
 
-            // 1. 기준일 조회
-            LocalDate today = LocalDate.now();
+            // 1. 기준일 조회          
             LocalDate latestBaseDate = null;
 
             String baseQuery = "SELECT MAX(STR_TO_DATE(BASE_DE, '%Y%m%d')) AS latest_date " +
@@ -167,7 +172,7 @@ public class ColctStatDbAggregatorUd {
                     stmt.setString(1, twelveMonthsAgo.format(DateTimeFormatter.BASIC_ISO_DATE));
                     stmt.setString(2, latestBaseDate.format(DateTimeFormatter.BASIC_ISO_DATE));
                     stmt.setString(3, latestBaseDate.format(DateTimeFormatter.BASIC_ISO_DATE));
-                    stmt.setString(4, today.format(DateTimeFormatter.BASIC_ISO_DATE));
+                    stmt.setString(4, today);
                 }
 
                 try (ResultSet rs = stmt.executeQuery()) {
@@ -186,8 +191,8 @@ public class ColctStatDbAggregatorUd {
                             continue;  // 매핑되지 않은 구장명은 건너뜁니다.
                         }
 
-                        String cityName = ColctStatDbAggregator.stdmToCityName.get(stdmNm);
-                        String cityCode = ColctStatDbAggregator.cityNameToCode.getOrDefault(cityName, "99");
+                        String cityName = ColctStatDbAggregatorUd.stdmToCityName.get(stdmNm);
+                        String cityCode = ColctStatDbAggregatorUd.cityNameToCode.getOrDefault(cityName, "99");
                         String key = baseDe + "_" + cityCode;
 
                         Stat stat = map.getOrDefault(key, new Stat());
@@ -210,61 +215,57 @@ public class ColctStatDbAggregatorUd {
                 }
             }
 
-            int insertCount = 0, updateCount = 0;
-            String checkExistSql = "SELECT COUNT(*) FROM colct_sports_viewng_info_stat WHERE BASE_DE = ? AND CTPRVN_CD = ?";
-            String insertSql = "INSERT INTO colct_sports_viewng_info_stat (BASE_DE, BASE_YEAR, BASE_MT, BASE_DAY, CTPRVN_CD, CTPRVN_NM, " +
-                    "KLEA_VIEWNG_NMPR_CO, KBO_VIEWNG_NMPR_CO, KBL_VIEWNG_NMPR_CO, WKBL_VIEWNG_NMPR_CO, KOVO_VIEWNG_NMPR_CO, SPORTS_VIEWNG_NMPR_CO, " +
-                    "KLEA_MATCH_CO, KBO_MATCH_CO, KBL_MATCH_CO, WKBL_MATCH_CO, KOVO_MATCH_CO, SPORTS_MATCH_CO, COLCT_DE, UPDT_DE) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-            String updateSql = "UPDATE colct_sports_viewng_info_stat SET " +
-                    "KLEA_VIEWNG_NMPR_CO=?, KBO_VIEWNG_NMPR_CO=?, KBL_VIEWNG_NMPR_CO=?, WKBL_VIEWNG_NMPR_CO=?, KOVO_VIEWNG_NMPR_CO=?, " +
-                    "SPORTS_VIEWNG_NMPR_CO=?, KLEA_MATCH_CO=?, KBO_MATCH_CO=?, KBL_MATCH_CO=?, WKBL_MATCH_CO=?, KOVO_MATCH_CO=?, " +
-                    "SPORTS_MATCH_CO=?, COLCT_DE=?, UPDT_DE=? " +
-                    "WHERE BASE_DE=? AND CTPRVN_CD=?";
+            int upsertCount = 0;
+            String upsertSql = """
+            INSERT INTO colct_sports_viewng_info_stat (
+                BASE_DE, BASE_YEAR, BASE_MT, BASE_DAY, CTPRVN_CD, CTPRVN_NM,
+                KLEA_VIEWNG_NMPR_CO, KBO_VIEWNG_NMPR_CO, KBL_VIEWNG_NMPR_CO, 
+                WKBL_VIEWNG_NMPR_CO, KOVO_VIEWNG_NMPR_CO, SPORTS_VIEWNG_NMPR_CO,
+                KLEA_MATCH_CO, KBO_MATCH_CO, KBL_MATCH_CO, WKBL_MATCH_CO, KOVO_MATCH_CO, SPORTS_MATCH_CO,
+                COLCT_DE, UPDT_DE
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                KLEA_VIEWNG_NMPR_CO = VALUES(KLEA_VIEWNG_NMPR_CO),
+                KBO_VIEWNG_NMPR_CO = VALUES(KBO_VIEWNG_NMPR_CO),
+                KBL_VIEWNG_NMPR_CO = VALUES(KBL_VIEWNG_NMPR_CO),
+                WKBL_VIEWNG_NMPR_CO = VALUES(WKBL_VIEWNG_NMPR_CO),
+                KOVO_VIEWNG_NMPR_CO = VALUES(KOVO_VIEWNG_NMPR_CO),
+                SPORTS_VIEWNG_NMPR_CO = VALUES(SPORTS_VIEWNG_NMPR_CO),
+                KLEA_MATCH_CO = VALUES(KLEA_MATCH_CO),
+                KBO_MATCH_CO = VALUES(KBO_MATCH_CO),
+                KBL_MATCH_CO = VALUES(KBL_MATCH_CO),
+                WKBL_MATCH_CO = VALUES(WKBL_MATCH_CO),
+                KOVO_MATCH_CO = VALUES(KOVO_MATCH_CO),
+                SPORTS_MATCH_CO = VALUES(SPORTS_MATCH_CO),
+                COLCT_DE = VALUES(COLCT_DE),
+                UPDT_DE = VALUES(UPDT_DE)
+            """;
 
-            try (
-                PreparedStatement checkStmt = conn.prepareStatement(checkExistSql);
-                PreparedStatement insertStmt = conn.prepareStatement(insertSql);
-                PreparedStatement updateStmt = conn.prepareStatement(updateSql)
-            ) {
-                for (Stat s : map.values()) {
-                    checkStmt.setString(1, s.baseDe);
-                    checkStmt.setString(2, s.cityCode);
-                    try (ResultSet rs = checkStmt.executeQuery()) {
-                        if (rs.next() && rs.getInt(1) > 0) {
-                            // update
-                            System.out.println("🔁 업데이트 대상: " + s.baseDe + " / " + s.cityName);
-                            updateStmt.setDouble(1, s.klea);
-                            updateStmt.setDouble(2, s.kbo);
-                            updateStmt.setDouble(3, s.kbl);
-                            updateStmt.setDouble(4, s.wkbl);
-                            updateStmt.setDouble(5, s.kovo);
-                            updateStmt.setDouble(6, s.klea + s.kbo + s.kbl + s.wkbl + s.kovo);
-                            updateStmt.setInt(7, s.kleaCount);
-                            updateStmt.setInt(8, s.kboCount);
-                            updateStmt.setInt(9, s.kblCount);
-                            updateStmt.setInt(10, s.wkblCount);
-                            updateStmt.setInt(11, s.kovoCount);
-                            updateStmt.setInt(12, s.kleaCount + s.kboCount + s.kblCount + s.wkblCount + s.kovoCount);
-                            updateStmt.setString(13, s.colctDe);
-                            updateStmt.setString(14, s.updtDe);
-                            updateStmt.setString(15, s.baseDe);
-                            updateStmt.setString(16, s.cityCode);
-                            updateStmt.executeUpdate();
-                            updateCount++;
-                        } else {
-                            // insert
-                            System.out.println("➕ 신규 삽입: " + s.baseDe + " / " + s.cityName);
-                            s.setParams(insertStmt);
-                            insertStmt.addBatch();
-                            insertCount++;
-                        }
-                    }
-                }
-                insertStmt.executeBatch();
-            }
-
-            System.out.println("✅ 집계 완료 — INSERT: " + insertCount + "건 / UPDATE: " + updateCount + "건");
+			
+			try (PreparedStatement stmt = conn.prepareStatement(upsertSql)) {
+			    for (Stat s : map.values()) {
+			        System.out.println("⏫ UPSERT 대상: " + s.baseDe + " / " + s.cityName);
+			        s.setParams(stmt);
+			        stmt.addBatch();
+			        upsertCount++;
+			    }
+			
+			    try {
+			        stmt.executeBatch();
+			
+			        // ✅ 성공 로그 기록
+			        LogUtil.insertLog("스포츠 관람", "스포츠 관람 정보 수집", "COLCT_SPORTS_VIEWING_INFO", "SUCCESS", map.size(), upsertCount, 0, "", today);
+		            LogUtil.insertFlag(today, "COLCT_SPORTS_VIEWING_INFO", true);
+			        System.out.println("✅ 집계 완료 — UPSERT 처리: " + upsertCount + "건");
+			
+			    } catch (Exception e) {
+			        // ❌ 실패 로그 기록
+			        LogUtil.insertLog("스포츠 관람", "스포츠 관람 정보 수집", "COLCT_SPORTS_VIEWING_INFO", "FAILED", map.size(), 0, 0, "", today);
+			
+			        System.err.println("❌ 집계 실패: " + e.getMessage());
+			    }
+			}
+            
         }
     }
 }

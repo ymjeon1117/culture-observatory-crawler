@@ -1,7 +1,16 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" 
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  
   <modelVersion>4.0.0</modelVersion>
+  
+  <!-- 스프링 부트 부모 POM 추가 -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.6.5</version> <!-- 원하는 버전으로 설정 -->
+    <relativePath /> <!-- lookup parent from repository -->
+  </parent>
 
   <groupId>com.culture</groupId>
   <artifactId>crawler</artifactId>
@@ -13,14 +22,14 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.8.1</version>
         <configuration>
-          <release>17</release>
+          <release>17</release> <!-- JDK 17을 사용 -->
         </configuration>
       </plugin>
     </plugins>
   </build>
 
   <dependencies>
-    <!-- Apache POI -->
+    <!-- Apache POI 의존성 -->
     <dependency>
       <groupId>org.apache.poi</groupId>
       <artifactId>poi</artifactId>
@@ -54,7 +63,7 @@
       <version>4.1.0</version>
     </dependency>
 
-    <!-- SLF4J + Log4j2 -->
+    <!-- SLF4J + Log4j2 (로그 관리) -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-core</artifactId>
@@ -66,12 +75,47 @@
       <version>2.20.0</version>
     </dependency>
     <dependency>
-  <groupId>org.slf4j</groupId>
-  <artifactId>slf4j-simple</artifactId> <!-- 또는 logback-classic -->
-  <version>1.7.36</version>
-</dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>1.7.36</version>
+    </dependency>
 
+    <!-- Spring Boot Starter Web -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
 
+    <!-- Spring Data JPA (옵션: 데이터베이스 사용시) -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
 
+    <!-- H2 Database (선택적: 임베디드 DB) -->
+    <dependency>
+        <groupId>com.h2database</groupId>
+        <artifactId>h2</artifactId>
+        <scope>runtime</scope>
+    </dependency>
+
+    <!-- Spring Boot Starter Thymeleaf (옵션: Thymeleaf 사용 시) -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
+    <!-- Spring Boot starter for web applications -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- Add Lombok for reducing boilerplate code -->
+    <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>1.18.22</version>  <!-- Ensure you are using the latest version -->
+        <scope>provided</scope> <!-- Lombok is not required at runtime -->
+    </dependency>
   </dependencies>
 </project>
