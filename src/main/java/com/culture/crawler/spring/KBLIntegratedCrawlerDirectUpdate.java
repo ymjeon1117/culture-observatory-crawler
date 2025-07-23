@@ -245,55 +245,7 @@ public class KBLIntegratedCrawlerDirectUpdate {
 	                    totalKblSc, 0, totalKblSc, e.getMessage(), today);
 	            System.err.println("❌ KBL_SC 배치 실패: " + e.getMessage());
 	        }
-//
-//	        // ✅ 두 번째 테이블 처리
-//	        int totalColct = listForColct.size();
-//	        int insertedColct = 0;
-//	        // ✅ 삽입 전 삭제 - colct_sports_match_info
-//	        try (PreparedStatement deleteStmt = conn.prepareStatement(
-//	                "DELETE FROM colct_sports_match_info WHERE GRP_NM = 'KBL' AND MATCH_DE >= ?")) {
-//	            deleteStmt.setString(1, latestMatchDateColct);
-//	            deleteStmt.executeUpdate();
-//	        }
-//	        try (
-//	            PreparedStatement insertStmtColct = conn.prepareStatement("""
-//	                INSERT INTO colct_sports_match_info (
-//	                    MATCH_DE, BASE_YEAR, BASE_MT, BASE_DAY, GRP_NM, LEA_NM, HOME_TEAM_NM, AWAY_TEAM_NM,
-//	                    STDM_NM, SPORTS_VIEWNG_NMPR_CO, COLCT_DE, UPDT_DE
-//	                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-//	            """)
-//	        ) {
-//	            conn.setAutoCommit(false);
-//	            for (Map<String, String> row : listForColct) {
-//	                insertStmtColct.setString(1, row.get("matchDe"));
-//	                insertStmtColct.setString(2, row.get("baseYear"));
-//	                insertStmtColct.setString(3, row.get("baseMonth"));
-//	                insertStmtColct.setString(4, row.get("baseDay"));
-//	                insertStmtColct.setString(5, "KBL");
-//	                insertStmtColct.setString(6, row.get("gameType"));
-//	                insertStmtColct.setString(7, row.get("homeTeam"));
-//	                insertStmtColct.setString(8, row.get("awayTeam"));
-//	                insertStmtColct.setString(9, row.get("stadium"));
-//	                insertStmtColct.setNull(10, Types.DECIMAL);
-//	                insertStmtColct.setString(11, today);
-//	                insertStmtColct.setString(12, today);
-//	                insertStmtColct.addBatch();
-//	            }
-//	            insertedColct = insertStmtColct.executeBatch().length;
-//	            conn.commit();
-//	            LogUtil.insertLog("KBL 스포츠 관람", "KBL 스포츠 경기 정보 수집", "colct_sports_match_info", "SUCCESS",
-//	                    totalColct, insertedColct, 0, "", today);
-//	            System.out.println("✅ colct_sports_match_info 테이블 배치 성공");
-//	        } catch (SQLException e) {
-//	            conn.rollback();
-//	            LogUtil.insertLog("KBL 스포츠 관람", "KBL 스포츠 경기 정보 수집", "colct_sports_match_info", "FAILED",
-//	                    totalColct, 0, totalColct, e.getMessage(), today);
-//	            System.err.println("❌ colct_sports_match_info 배치 실패: " + e.getMessage());
-//	        }
-//
 	        System.out.println("✅ KBL 스케줄(관중정보x) DB 저장 시도 완료");
-//	        return latestMatchDateKblCd;
-//	        return LocalDate.parse(latestMatchDateKblCd, DateTimeFormatter.ofPattern("yyyyMMdd"));
 	        Map<String, LocalDate> result = new HashMap<>();
 	        result.put("latestMatchDateColct", LocalDate.parse(latestMatchDateColct, DateTimeFormatter.ofPattern("yyyyMMdd")));
 	        result.put("latestMatchDateKblCd", LocalDate.parse(latestMatchDateKblCd, DateTimeFormatter.ofPattern("yyyyMMdd")));
@@ -329,14 +281,6 @@ public class KBLIntegratedCrawlerDirectUpdate {
 
         WebDriver driver = new ChromeDriver(options);
         WebDriverWait wait = new WebDriverWait(driver, java.time.Duration.ofSeconds(15));
-
-//        // ✅ 생성된 폴더 자동 열기
-//        try {
-//            System.out.println("📁 생성된 임시폴더: " + tempFolderPath);
-//            new ProcessBuilder("cmd", "/c", "start", "", "\"" + tempFolderPath + "\"").start();
-//        } catch (Exception e) {
-//            System.out.println("❌ 폴더 자동 열기 실패: " + e.getMessage());
-//        }
 
         try {
             // ✅ 사이트 진입 및 메뉴 선택
@@ -548,66 +492,6 @@ public class KBLIntegratedCrawlerDirectUpdate {
                         dataList.size(), 0, dataList.size(), e.getMessage(), today);
                 System.err.println("❌ KBL_CD 배치 실패: " + e.getMessage());
             }
-
-//
-//         // ✅ colct_sports_match_info 테이블: UPDATE
-//            try (PreparedStatement updateStmt = conn.prepareStatement("""
-//                    UPDATE colct_sports_match_info
-//                    SET SPORTS_VIEWNG_NMPR_CO = ?, UPDT_DE = ?
-//                    WHERE MATCH_DE = ? AND GRP_NM = ? AND HOME_TEAM_NM = ?
-//                """)) {
-//
-//                conn.setAutoCommit(false);
-//
-//                for (Map<String, String> row : dataList) {
-//                    updateStmt.setBigDecimal(1, new BigDecimal(row.get("crowd") + ".00000"));
-//                    updateStmt.setString(2, today);
-//                    updateStmt.setString(3, row.get("matchDe"));
-//                    updateStmt.setString(4, "KBL");
-//                    updateStmt.setString(5, row.get("homeTeam"));
-//                    updateStmt.addBatch();
-//                }
-//
-//                int[] results = updateStmt.executeBatch();
-//                conn.commit();
-//
-//                int updatedCount1 = 0;
-//                int notUpdatedCount1 = 0;
-//
-//                for (int result : results) {
-//                    if (result > 0) updatedCount1++;
-//                    else notUpdatedCount1++;
-//                }
-//
-//                String updateStatus;
-//                String errorMsgForLog;
-//
-//                if (updatedCount1 > 0) {
-//                    updateStatus = "SUCCESS";
-//                    errorMsgForLog = "";
-//                } else {
-//                    updateStatus = "FAILED";
-//                    errorMsgForLog = "업데이트된 행이 없습니다.";
-//                }
-//
-//                LogUtil.insertLog("KBL 스포츠 관람", "KBL 스포츠 경기 정보 수집", "colct_sports_match_info", updateStatus,
-//                        dataList.size(), 0, updatedCount1, errorMsgForLog, today);
-//
-//                if ("FAILED".equals(updateStatus)) {
-//                    System.err.println("❌ colct_sports_match_info 업데이트 전부 실패");
-//                } else {
-//                    System.out.println("✅ colct_sports_match_info 업데이트 완료: " + updatedCount1 + "건");
-//                }
-//                System.out.println("❌ 업데이트 실패 건수: " + notUpdatedCount1 + "건");
-//
-//            } catch (SQLException e) {
-//                conn.rollback();
-//                LogUtil.insertLog("KBL 스포츠 관람", "KBL 스포츠 경기 정보 수집", "colct_sports_match_info", "FAILED",
-//                        dataList.size(), 0, 0, e.getMessage(), today);
-//                System.err.println("❌ colct_sports_match_info 배치 실패: " + e.getMessage());
-//            }
-
-
 
             // ✅ 추가된 경기 수 확인
             int addedGamesCount = 0;
